@@ -310,7 +310,7 @@ class auth_plugin_relogin extends auth_plugin_base {
                 'objectid' => $found->id,
                 'action' => 'loggedout',
                 'target' => 'user',
-                'time' => time() - 60 * 60 * 24,
+                'time' => time() - $CFG->sessiontimeout,
             );
             $where = 'userid = :userid AND objectid = :objectid AND action = :action AND timecreated > :time';
             $loggedout = $reader->get_events_select($where, $params, 'timecreated DESC', 0, 0);
@@ -334,6 +334,8 @@ class auth_plugin_relogin extends auth_plugin_base {
                 $authplugin->sync_roles($found);
                 // Some auth plugins don't rely on password in authenticated hook.
                 $authplugin->user_authenticated_hook($found, $found->username, '');
+            } catch (\moodle_exception $e) {
+                $error = $e;
             }
         }
         // Finally login the user.

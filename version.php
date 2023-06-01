@@ -26,6 +26,6 @@ defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'auth_relogin';
 $plugin->release = '0.1.0';
-$plugin->version = 2023053100;
+$plugin->version = 2023060201;
 $plugin->requires = 2021051700;
 $plugin->maturity = MATURITY_BETA;
