@@ -375,7 +375,6 @@ class auth_plugin_relogin extends auth_plugin_base {
             'secure' => is_moodle_cookie_secure(),
             'httponly' => $CFG->cookiehttponly,
         ];
-        
         if (\core_useragent::is_chrome() && \core_useragent::check_chrome_version('78') && is_moodle_cookie_secure()) {
             // If $samesite is empty, we don't want there to be any SameSite attribute.
             $options['samesite'] = 'None';
