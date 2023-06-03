@@ -1,5 +1,5 @@
 <?php
-// This file is part of Moodle - https://moodle.org/
+// This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -12,20 +12,25 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Plugin version and other meta-data are defined here.
+ * Task definition for auth_relogin.
  *
- * @package     auth_relogin
- * @copyright   2023 Mohammad Farouk <phun.for.physics@gmail.com>
- * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package    auth_relogin
+ * @copyright  2023 Mo Farouk <phun.for.physics@gmail.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'auth_relogin';
-$plugin->release = '0.1.0';
-$plugin->version = 2023060323;
-$plugin->requires = 2021051700;
-$plugin->maturity = MATURITY_STABLE;
+// List of observers.
+$observers = array(
+    // Saving the plugin cookies after the user logged in.
+    array(
+        'eventname' => '\core\event\user_loggedin',
+        'callback' => 'auth_relogin\observer::save_cookies',
+    ),
+);
+

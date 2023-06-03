@@ -93,7 +93,7 @@ class auth_plugin_relogin extends auth_plugin_base {
      * @return bool
      */
     public function is_internal() {
-        return true;
+        return false;
     }
 
     /**
@@ -160,8 +160,6 @@ class auth_plugin_relogin extends auth_plugin_base {
      * Hook for overriding behavior of login page.
      * This method is called from login/index.php page for all enabled auth plugins.
      *
-     * @global object
-     * @global object
      */
     public function loginpage_hook() {
         if (get_config('auth_relogin', 'loginpage')) {
@@ -184,57 +182,57 @@ class auth_plugin_relogin extends auth_plugin_base {
      *
      */
     public function pre_loginpage_hook() {
-        global $DB, $CFG;
+        global $DB, $CFG, $SITE;
         // Try to automatic login the user by two different ways
         // once by check http_cookies and another by ip address.
 
-        if (isset($_SERVER['HTTP_COOKIE'])) {
-            $matches = [];
-            // Check the plugin cookies.
-            if (isset($_COOKIE['ReLoginMoodle'])) {
-                $matches[] = $_COOKIE['ReLoginMoodle'];
-                $a = true;
-            } else {
-                $a = false;
-            }
-            // Check moodle cookies.
-            if (!isset($CFG->sessioncookie)) {
-                $sessionname = 'MoodleSession';
-            } else {
-                $sessionname = 'MoodleSession'.$CFG->sessioncookie;
-            }
-            if (isset($_COOKIE[$sessionname])) {
-                $matches[] = $_COOKIE[$sessionname];
-                $b = true;
-            } else {
-                $b = false;
-            }
-
-            if ($a || $b) {
-                foreach ($matches as $sid) {
-                    $record = $DB->get_record('sessions', ['sid' => $sid]);
-                    if (!$record) {
-                        continue;
-                    }
-                    $ruser = \core_user::get_user($record->userid);
-                    if ($ruser == false) {
-                        continue;
-                    }
-                    // If the user suspended or deleted, do nothing.
-                    if (!empty($ruser->deleted) || !empty($ruser->suspended)) {
-                        continue;
-                    }
-                    // Check if the session is not timed out.
-                    $exist = \core\session\manager::session_exists($sid);
-                    if (!$exist) {
-                        continue;
-                    }
-                    $found = $ruser;
-                    break;
-                }
-                unset($record, $ruser, $matches);
-            }
+        $matches = [];
+        // Check the plugin cookies.
+        $cookiesname = (!empty($SITE->shortname)) ? 'ReLoginMoodle'.$SITE->shortname : 'ReLoginMoodle';
+        if (isset($_COOKIE[$cookiesname])) {
+            $matches[] = $_COOKIE[$cookiesname];
+            $a = true;
+        } else {
+            $a = false;
         }
+        // Check moodle cookies.
+        if (!isset($CFG->sessioncookie)) {
+            $sessionname = 'MoodleSession';
+        } else {
+            $sessionname = 'MoodleSession'.$CFG->sessioncookie;
+        }
+        if (isset($_COOKIE[$sessionname])) {
+            $matches[] = $_COOKIE[$sessionname];
+            $b = true;
+        } else {
+            $b = false;
+        }
+
+        if ($a || $b) {
+            foreach ($matches as $sid) {
+                $record = $DB->get_record('sessions', ['sid' => $sid]);
+                if (!$record) {
+                    continue;
+                }
+                $ruser = \core_user::get_user($record->userid);
+                if ($ruser == false || isguestuser($ruser)) {
+                    continue;
+                }
+                // If the user suspended or deleted, do nothing.
+                if (!empty($ruser->deleted) || !empty($ruser->suspended)) {
+                    continue;
+                }
+                // Check if the session is not timed out.
+                $exist = \core\session\manager::session_exists($sid);
+                if (!$exist) {
+                    continue;
+                }
+                $found = $ruser;
+                break;
+            }
+            unset($record, $ruser, $matches);
+        }
+
         // Prepare the events reader.
         $logmanager = get_log_manager();
         $readers = $logmanager->get_readers('core\log\sql_reader');
@@ -259,7 +257,7 @@ class auth_plugin_relogin extends auth_plugin_base {
                         continue;
                     }
                     $ruser = \core_user::get_user($record->userid);
-                    if ($ruser == false) {
+                    if ($ruser == false || isguestuser($ruser)) {
                         continue;
                     }
                     // If the user suspended or deleted, do nothing.
@@ -310,7 +308,7 @@ class auth_plugin_relogin extends auth_plugin_base {
                 'objectid' => $found->id,
                 'action' => 'loggedout',
                 'target' => 'user',
-                'time' => time() - $CFG->sessiontimeout,
+                'time' => time() - 60 * 60 * 24 * 3,
             );
             $where = 'userid = :userid AND objectid = :objectid AND action = :action AND timecreated > :time';
             $loggedout = $reader->get_events_select($where, $params, 'timecreated DESC', 0, 0);
@@ -326,6 +324,10 @@ class auth_plugin_relogin extends auth_plugin_base {
         if ($userauth == 'nologin' || !is_enabled_auth($userauth)) {
             return;
         }
+        // Login the user.
+        complete_user_login($found);
+
+        // As this method is not calling authenticated_user_login, so lets call user_authenticated_hook to simulate the procedure.
         $auths = get_enabled_auth_plugins();
 
         foreach ($auths as $auth) {
@@ -338,8 +340,7 @@ class auth_plugin_relogin extends auth_plugin_base {
                 $error = $e;
             }
         }
-        // Finally login the user.
-        complete_user_login($found);
+
     }
 
     /**
@@ -351,46 +352,7 @@ class auth_plugin_relogin extends auth_plugin_base {
      * @param string $password plain text password (with system magic quotes)
      */
     public function user_authenticated_hook(&$user, $username, $password) {
-        global $CFG, $DB;
-        // Check if permanent cookies enabled.
-        if (!get_config('auth_relogin', 'cookies')) {
-            return;
-        }
-        // Prepare the cookies parameters according to site settings.
-        $cookiesecure = is_moodle_cookie_secure();
-        // Set sessioncookie variable if it isn't already.
-        if (!isset($CFG->sessioncookie)) {
-            $sessionname = 'MoodleSession';
-        } else {
-            $sessionname = 'MoodleSession'.$CFG->sessioncookie;
-        }
-
-        if (isset($_COOKIE[$sessionname])) {
-            $sid = $_COOKIE[$sessionname];
-        } else {
-            $sessions = $DB->get_records('sessions', ['userid' => $user->id], 'timemodified DESC', 'sid', 0, 1);
-            if (!empty($sessions)) {
-                $first = array_key_first($sessions);
-                $sid = $sessions[$first]->sid;
-            } else {
-                return;
-            }
-        }
-
-        $options = [
-            'expires' => time() + 60 * 60 * 24 * 30,
-            'path' => $CFG->sessioncookiepath,
-            'domain' => $CFG->sessioncookiedomain,
-            'secure' => $cookiesecure,
-            'httponly' => $CFG->cookiehttponly,
-        ];
-        if (\core_useragent::is_chrome() && \core_useragent::check_chrome_version('78') && is_moodle_cookie_secure()) {
-            $options['samesite'] = 'None';
-        }
-
-        $cookiename = 'ReLoginMoodle';
-        unset($_COOKIE[$cookiename]);
-        setcookie($cookiename, $sid, $options);
+        // Using observer instate, to make sure the session already started.
     }
 
     /**
@@ -401,20 +363,26 @@ class auth_plugin_relogin extends auth_plugin_base {
      * @param stdClass $user clone of USER object before the user session was terminated
      */
     public function postlogout_hook($user) {
-        global $CFG, $DB;
+        global $CFG, $DB, $SITE;
         // When the user logout normally, making sure this plugin didn't log him again.
         // Also it enhance security.
         // Unset this plugin cookies.
-        $cookiename = 'ReLoginMoodle';
-        setcookie($cookiename, '', time() - 3600);
-        unset($_COOKIE[$cookiename]);
-        // Unset normal moodle cookies.
-        if (!isset($CFG->sessioncookie)) {
-            $sessionname = 'MoodleSession';
-        } else {
-            $sessionname = 'MoodleSession'.$CFG->sessioncookie;
+        $cookiesname = (!empty($SITE->shortname)) ? 'ReLoginMoodle'.$SITE->shortname : 'ReLoginMoodle';
+        $options = [
+            'expires' => time() - DAYSECS * 30,
+            'path' => $CFG->sessioncookiepath,
+            'domain' => $CFG->sessioncookiedomain,
+            'secure' => is_moodle_cookie_secure(),
+            'httponly' => $CFG->cookiehttponly,
+        ];
+        
+        if (\core_useragent::is_chrome() && \core_useragent::check_chrome_version('78') && is_moodle_cookie_secure()) {
+            // If $samesite is empty, we don't want there to be any SameSite attribute.
+            $options['samesite'] = 'None';
         }
-        unset($_COOKIE[$sessionname]);
+        setcookie($cookiesname, '', $options);
+        unset($_COOKIE[$cookiesname]);
+
         // Delete any remained sessions records for this ip address.
         $DB->delete_records('sessions', ['userid' => $user->id, 'lastip' => getremoteaddr()]);
     }
