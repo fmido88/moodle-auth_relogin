@@ -1,4 +1,5 @@
 <?php
+use core\event\user_loggedin;
 // This file is part of Moodle - https://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -162,8 +163,11 @@ class auth_plugin_relogin extends auth_plugin_base {
      *
      */
     public function loginpage_hook() {
-        if (get_config('auth_relogin', 'loginpage')) {
-            $this->pre_loginpage_hook();
+        if (!empty(get_config('auth_relogin', 'loginpage'))) {
+            $done = $this->pre_loginpage_hook();
+            if ($done) {
+                redirect(new \moodle_url('/'));
+            }
         }
     }
 
@@ -182,7 +186,10 @@ class auth_plugin_relogin extends auth_plugin_base {
      *
      */
     public function pre_loginpage_hook() {
-        global $DB, $CFG, $SITE;
+        if (isloggedin() && !isguestuser()) {
+            return false;
+        }
+        global $DB, $CFG, $SITE, $SESSION;
         // Try to automatic login the user by two different ways
         // once by check http_cookies and another by ip address.
 
@@ -215,13 +222,10 @@ class auth_plugin_relogin extends auth_plugin_base {
                     continue;
                 }
                 $ruser = \core_user::get_user($record->userid);
-                if ($ruser == false || isguestuser($ruser)) {
+                if (!self::is_valid_user($ruser)) {
                     continue;
                 }
-                // If the user suspended or deleted, do nothing.
-                if (!empty($ruser->deleted) || !empty($ruser->suspended)) {
-                    continue;
-                }
+
                 // Check if the session is not timed out.
                 $exist = \core\session\manager::session_exists($sid);
                 if (!$exist) {
@@ -241,7 +245,9 @@ class auth_plugin_relogin extends auth_plugin_base {
         $ip = getremoteaddr(false);
         // Check if the settings enabled.
         $ipsetting = get_config('auth_relogin', 'loginip');
-        if (!isset($found) && !empty($ip) && $ipsetting) {
+        if (empty($found) && !empty($ip) && !empty($ipsetting)) {
+            raise_memory_limit(MEMORY_HUGE);
+            core_php_time_limit::raise();
             // Check if this ip used by more than one person?
             // if multiple records exists, we cannot risk logging in the user, may be it will mix with someone else.
             $countips = $DB->count_records('user', ['lastip' => $ip]);
@@ -256,14 +262,12 @@ class auth_plugin_relogin extends auth_plugin_base {
                     if (!$exist) {
                         continue;
                     }
+
                     $ruser = \core_user::get_user($record->userid);
-                    if ($ruser == false || isguestuser($ruser)) {
+                    if (!self::is_valid_user($ruser)) {
                         continue;
                     }
-                    // If the user suspended or deleted, do nothing.
-                    if (!empty($ruser->deleted) || !empty($ruser->suspended)) {
-                        continue;
-                    }
+
                     // Check that this ip matches this user.
                     // We don't want to login someone instate of some one else.
                     if ($ruser->lastip != $ip) {
@@ -274,10 +278,10 @@ class auth_plugin_relogin extends auth_plugin_base {
                     // just terminate this method.
                     $ok = true;
                     if ($reader !== null) {
-                        $params = array(
+                        $params = [
                             'time' => $ruser->lastaccess - 60 * 60 * 24 * 7,
-                            'ip' => $ip
-                        );
+                            'ip'   => $ip
+                        ];
                         $where = 'ip = :ip AND timecreated >= :time';
                         $events = $reader->get_events_select($where, $params, 'timecreated DESC', 0, 0);
                         foreach ($events as $e) {
@@ -299,41 +303,42 @@ class auth_plugin_relogin extends auth_plugin_base {
         }
         // We did our best.
         if (!isset($found)) {
-            return;
+            return false;
         }
 
         if ($reader !== null) {
-            $params = array(
-                'userid' => $found->id,
+            $params = [
+                'userid'   => $found->id,
                 'objectid' => $found->id,
-                'action' => 'loggedout',
-                'target' => 'user',
-                'time' => time() - 60 * 60 * 24 * 3,
-            );
+                'action'   => 'loggedout',
+                'target'   => 'user',
+                'time'     => time() - 60 * 60 * 24 * 3,
+            ];
             $where = 'userid = :userid AND objectid = :objectid AND action = :action AND timecreated > :time';
             $loggedout = $reader->get_events_select($where, $params, 'timecreated DESC', 0, 0);
             // Check if the user already logged out in the last 24 hours.
             foreach ($loggedout as $l) {
                 if ($l->other['sessionid'] == $sid) {
-                    return;
+                    return false;
                 }
             }
         }
         // Use manual if auth not set.
         $userauth = empty($found->auth) ? 'manual' : $found->auth;
         if ($userauth == 'nologin' || !is_enabled_auth($userauth)) {
-            return;
+            return false;
         }
-        // Login the user.
-        complete_user_login($found);
 
         // As this method is not calling authenticated_user_login, so lets call user_authenticated_hook to simulate the procedure.
         $auths = get_enabled_auth_plugins();
 
         foreach ($auths as $auth) {
+            if ($auth === 'relogin') {
+                continue;
+            }
+
             $authplugin = get_auth_plugin($auth);
             try {
-                $authplugin->sync_roles($found);
                 // Some auth plugins don't rely on password in authenticated hook.
                 $authplugin->user_authenticated_hook($found, $found->username, '');
             } catch (\moodle_exception $e) {
@@ -341,18 +346,30 @@ class auth_plugin_relogin extends auth_plugin_base {
             }
         }
 
+        if (!empty($SESSION->has_timed_out)) {
+            unset($SESSION->has_timed_out);
+        }
+        // Login the user.
+        $user = complete_user_login($found);
+        if (!empty($user) && is_object($user)) {
+            return true;
+        }
+        return false;
     }
 
     /**
-     * Post authentication hook.
-     * This method is called from authenticate_user_login() for all enabled auth plugins.
-     *
-     * @param object $user user object, later used for $USER
-     * @param string $username (with system magic quotes)
-     * @param string $password plain text password (with system magic quotes)
+     * Check if the user exists in moodle and not guest, suspended or deleted.
+     * @param object|bool $user
+     * @return bool
      */
-    public function user_authenticated_hook(&$user, $username, $password) {
-        // Using observer instate, to make sure the session already started.
+    public static function is_valid_user($user) {
+        if ($user == false ||
+        isguestuser($user) ||
+        !empty($user->deleted) ||
+        !empty($user->suspended)) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -369,10 +386,10 @@ class auth_plugin_relogin extends auth_plugin_base {
         // Unset this plugin cookies.
         $cookiesname = (!empty($SITE->shortname)) ? 'ReLoginMoodle'.$SITE->shortname : 'ReLoginMoodle';
         $options = [
-            'expires' => time() - DAYSECS * 30,
-            'path' => $CFG->sessioncookiepath,
-            'domain' => $CFG->sessioncookiedomain,
-            'secure' => is_moodle_cookie_secure(),
+            'expires'  => time() - DAYSECS * 30,
+            'path'     => $CFG->sessioncookiepath,
+            'domain'   => $CFG->sessioncookiedomain,
+            'secure'   => is_moodle_cookie_secure(),
             'httponly' => $CFG->cookiehttponly,
         ];
         if (\core_useragent::is_chrome() && \core_useragent::check_chrome_version('78') && is_moodle_cookie_secure()) {

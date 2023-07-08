@@ -23,7 +23,7 @@
  */
 namespace auth_relogin;
 use auth_plugin_relogin;
-use WpOrg\Requests\Cookie;
+
 /**
  * Observer class.
  *
@@ -44,10 +44,11 @@ class observer {
      */
     public static function save_cookies(\core\event\user_loggedin $event) {
         global $CFG, $DB, $SITE;
+        require_once($CFG->dirroot . '/auth/relogin/auth.php');
         $userid = $event->userid;
 
         $user = \core_user::get_user($userid);
-        if (!$user || isguestuser($user) || !empty($user->deleted) || !empty($user->suspended)) {
+        if (!auth_plugin_relogin::is_valid_user($user)) {
             return;
         }
 
@@ -82,5 +83,6 @@ class observer {
         $cookiesname = (!empty($SITE->shortname)) ? 'ReLoginMoodle'.$SITE->shortname : 'ReLoginMoodle';
         setcookie($cookiesname, $sid, $options);
     }
+
 }
 

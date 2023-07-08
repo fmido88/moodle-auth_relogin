@@ -13,24 +13,29 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
-
 /**
- * Task definition for auth_relogin.
+ * Privacy Subsystem implementation for auth_relogin.
  *
  * @package    auth_relogin
  * @copyright  2023 Mo Farouk <phun.for.physics@gmail.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-
-
+namespace auth_relogin\privacy;
 defined('MOODLE_INTERNAL') || die();
-
-// List of observers.
-$observers = array(
-    // Saving the plugin cookies after the user logged in.
-    array(
-        'eventname' => '\core\event\user_loggedin',
-        'callback' => '\auth_relogin\observer::save_cookies',
-    ),
-);
-
+/**
+ * Privacy Subsystem for auth_relogin implementing null_provider.
+ *
+ * @copyright  2023 Mo Farouk <phun.for.physics@gmail.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class provider implements \core_privacy\local\metadata\null_provider {
+    /**
+     * Get the language string identifier with the component's language
+     * file to explain why this plugin stores no data.
+     *
+     * @return  string
+     */
+    public static function get_reason() : string {
+        return 'privacy:metadata';
+    }
+}
