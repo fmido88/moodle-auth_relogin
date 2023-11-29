@@ -29,12 +29,9 @@ if ($hassiteconfig) {
                                                     get_string('loginpage', 'auth_relogin'),
                                                     get_string('loginpage_help', 'auth_relogin'),
                                                     1));
-    $settings->add(new admin_setting_configcheckbox('auth_relogin/cookies',
-                                                    get_string('cookies', 'auth_relogin'),
-                                                    get_string('cookies_help', 'auth_relogin'),
+
+    $settings->add(new admin_setting_configcheckbox('auth_relogin/anypage',
+                                                    get_string('anypage', 'auth_relogin'),
+                                                    get_string('anypage_help', 'auth_relogin'),
                                                     1));
-    $settings->add(new admin_setting_configcheckbox('auth_relogin/loginip',
-                                                    get_string('loginip', 'auth_relogin'),
-                                                    get_string('loginip_help', 'auth_relogin'),
-                                                    0));
 }

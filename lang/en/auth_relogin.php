@@ -32,8 +32,6 @@ Warning: Permanent cookies may be considered a privacy issue if used without con
 NOTE: if both this method (permanent cookies) and (use ip address) not checked, this plugin not functionally working.';
 $string['loginpage'] = 'Apply for login page?';
 $string['loginpage_help'] = 'If checked the plugin will try to login the user automatically if their session not expired yet, otherwise the plugin works for any other page that requires login.';
-$string['loginip'] = 'Use ip address?';
-$string['loginip_help'] = 'If checked the plugin will check if the current clint ip address matches a single user with un-expired session and logging him again.<br>
-Warning: this plugin checks if the ip belongs to a single user only, yet there is a risk that this method logging in another user if they both used to use the same device or same network.<br>
-NOTE: if both this method (permanent cookies) and (use ip address) not checked, this plugin not functionally working.';
+$string['anypage'] = 'Login the user from any page.';
+$string['anypage_help'] = 'If not enabled, the user will be logged in automatically only from pages required login, else it will login the user from any page including the login page.';
 $string['pluginname'] = 'ReLogin';

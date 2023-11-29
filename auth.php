@@ -1,5 +1,4 @@
 <?php
-use core\event\user_loggedin;
 // This file is part of Moodle - https://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -24,7 +23,7 @@ use core\event\user_loggedin;
  */
 
 defined('MOODLE_INTERNAL') || die();
-
+global $CFG;
 require_once($CFG->libdir.'/authlib.php');
 
 // For further information about authentication plugins please read
@@ -54,18 +53,8 @@ class auth_plugin_relogin extends auth_plugin_base {
      * @return bool Authentication success or failure.
      */
     public function user_login($username, $password) {
-        global $CFG, $DB;
 
-        // Validate the login by using the Moodle user table.
-        // Remove if a different authentication method is desired.
-        $user = $DB->get_record('user', array('username' => $username, 'mnethostid' => $CFG->mnet_localhost_id));
-
-        // User does not exist.
-        if (!$user) {
-            return false;
-        }
-
-        return validate_internal_user_password($user, $password);
+        return false;
     }
 
     /**
@@ -163,10 +152,13 @@ class auth_plugin_relogin extends auth_plugin_base {
      *
      */
     public function loginpage_hook() {
+        global $CFG;
         if (!empty(get_config('auth_relogin', 'loginpage'))) {
             $done = $this->pre_loginpage_hook();
             if ($done) {
-                redirect(new \moodle_url('/'));
+                require_once($CFG->dirroot.'/login/lib.php');
+                $redirect = core_login_get_return_url();
+                redirect(new \moodle_url($redirect));
             }
         }
     }
@@ -189,122 +181,27 @@ class auth_plugin_relogin extends auth_plugin_base {
         if (isloggedin() && !isguestuser()) {
             return false;
         }
-        global $DB, $CFG, $SITE, $SESSION;
+
+        if (AJAX_SCRIPT || CLI_SCRIPT) {
+            return false;
+        }
+
+        global $DB, $CFG, $SESSION;
         // Try to automatic login the user by two different ways
         // once by check http_cookies and another by ip address.
-
-        $matches = [];
-        // Check the plugin cookies.
-        $cookiesname = (!empty($SITE->shortname)) ? 'ReLoginMoodle'.$SITE->shortname : 'ReLoginMoodle';
-        if (isset($_COOKIE[$cookiesname])) {
-            $matches[] = $_COOKIE[$cookiesname];
-            $a = true;
-        } else {
-            $a = false;
-        }
-        // Check moodle cookies.
-        if (!isset($CFG->sessioncookie)) {
-            $sessionname = 'MoodleSession';
-        } else {
-            $sessionname = 'MoodleSession'.$CFG->sessioncookie;
-        }
-        if (isset($_COOKIE[$sessionname])) {
-            $matches[] = $_COOKIE[$sessionname];
-            $b = true;
-        } else {
-            $b = false;
-        }
-
-        if ($a || $b) {
-            foreach ($matches as $sid) {
-                $record = $DB->get_record('sessions', ['sid' => $sid]);
-                if (!$record) {
-                    continue;
-                }
-                $ruser = \core_user::get_user($record->userid);
-                if (!self::is_valid_user($ruser)) {
-                    continue;
-                }
-
-                // Check if the session is not timed out.
-                $exist = \core\session\manager::session_exists($sid);
-                if (!$exist) {
-                    continue;
-                }
-                $found = $ruser;
-                break;
-            }
-            unset($record, $ruser, $matches);
+        list($found, $sid) = $this->get_user_by_cookies();
+        // We did our best.
+        if (!self::is_valid_user($found)) {
+            return false;
         }
 
         // Prepare the events reader.
+        // In this part we check for logged out event with the same session id.
+        // This is a double check to not relogin the user that is already logged out by himself.
+        // TODO delete this part after making that the cookies get deleted after logging out.
         $logmanager = get_log_manager();
-        $readers = $logmanager->get_readers('core\log\sql_reader');
-        $reader = array_pop($readers);
-        // If the first method fail try ip address.
-        $ip = getremoteaddr(false);
-        // Check if the settings enabled.
-        $ipsetting = get_config('auth_relogin', 'loginip');
-        if (empty($found) && !empty($ip) && !empty($ipsetting)) {
-            raise_memory_limit(MEMORY_HUGE);
-            core_php_time_limit::raise();
-            // Check if this ip used by more than one person?
-            // if multiple records exists, we cannot risk logging in the user, may be it will mix with someone else.
-            $countips = $DB->count_records('user', ['lastip' => $ip]);
-            if ($countips == 1) {
-                $records1 = $DB->get_records('sessions', ['lastip' => $ip], 'timecreated DESC');
-                $records2 = $DB->get_records('sessions', ['firstip' => $ip], 'timecreated DESC');
-                $records = array_merge($records1, $records2);
-                foreach ($records as $record) {
-                    $sid = $record->sid;
-                    // Check if the session is not timed out.
-                    $exist = \core\session\manager::session_exists($record->sid);
-                    if (!$exist) {
-                        continue;
-                    }
-
-                    $ruser = \core_user::get_user($record->userid);
-                    if (!self::is_valid_user($ruser)) {
-                        continue;
-                    }
-
-                    // Check that this ip matches this user.
-                    // We don't want to login someone instate of some one else.
-                    if ($ruser->lastip != $ip) {
-                        continue;
-                    }
-                    // Check all events from the last login of the founded user
-                    // if the ip matches with other user
-                    // just terminate this method.
-                    $ok = true;
-                    if ($reader !== null) {
-                        $params = [
-                            'time' => $ruser->lastaccess - 60 * 60 * 24 * 7,
-                            'ip'   => $ip
-                        ];
-                        $where = 'ip = :ip AND timecreated >= :time';
-                        $events = $reader->get_events_select($where, $params, 'timecreated DESC', 0, 0);
-                        foreach ($events as $e) {
-                            if ($e->userid != $ruser->id) {
-                                $ok = false;
-                                break;
-                            }
-                        }
-                    }
-                    if (!$ok) {
-                        continue;
-                    }
-                    $found = $ruser;
-
-                    break;
-                }
-                unset($records, $records1, $records2, $ruser);
-            }
-        }
-        // We did our best.
-        if (!isset($found)) {
-            return false;
-        }
+        $readers    = $logmanager->get_readers('core\log\sql_reader');
+        $reader     = array_pop($readers);
 
         if ($reader !== null) {
             $params = [
@@ -312,48 +209,42 @@ class auth_plugin_relogin extends auth_plugin_base {
                 'objectid' => $found->id,
                 'action'   => 'loggedout',
                 'target'   => 'user',
-                'time'     => time() - 60 * 60 * 24 * 3,
+                'time'     => time() - 30 * DAYSECS, // Cookies age.
             ];
-            $where = 'userid = :userid AND objectid = :objectid AND action = :action AND timecreated > :time';
+            $where = 'userid = :userid AND objectid = :objectid AND action = :action AND timecreated >= :time';
             $loggedout = $reader->get_events_select($where, $params, 'timecreated DESC', 0, 0);
-            // Check if the user already logged out in the last 24 hours.
+            // Check if the user already logged out in this period of time.
             foreach ($loggedout as $l) {
                 if ($l->other['sessionid'] == $sid) {
+                    debugging('Cookies aren\'t deleted properly after logging out.', DEBUG_DEVELOPER);
                     return false;
                 }
             }
         }
+
         // Use manual if auth not set.
         $userauth = empty($found->auth) ? 'manual' : $found->auth;
-        if ($userauth == 'nologin' || !is_enabled_auth($userauth)) {
+        if ($userauth == 'nologin') {
             return false;
-        }
-
-        // As this method is not calling authenticated_user_login, so lets call user_authenticated_hook to simulate the procedure.
-        $auths = get_enabled_auth_plugins();
-
-        foreach ($auths as $auth) {
-            if ($auth === 'relogin') {
-                continue;
-            }
-
-            $authplugin = get_auth_plugin($auth);
-            try {
-                // Some auth plugins don't rely on password in authenticated hook.
-                $authplugin->user_authenticated_hook($found, $found->username, '');
-            } catch (\moodle_exception $e) {
-                $error = $e;
-            }
         }
 
         if (!empty($SESSION->has_timed_out)) {
             unset($SESSION->has_timed_out);
         }
+
         // Login the user.
         $user = complete_user_login($found);
-        if (!empty($user) && is_object($user)) {
+
+        if (!empty($user) && is_object($user) && !isguestuser($user)) {
+            \core\session\manager::apply_concurrent_login_limit($found->id, session_id());
+            if (optional_param('sesskey', false, PARAM_BOOL)) {
+                // This means that the current page contains a submitted form.
+                // To avoid resubmission or invalid sesskey exception, Redirect.
+                redirect(new moodle_url('/'));
+            }
             return true;
         }
+
         return false;
     }
 
@@ -363,13 +254,66 @@ class auth_plugin_relogin extends auth_plugin_base {
      * @return bool
      */
     public static function is_valid_user($user) {
-        if ($user == false ||
-        isguestuser($user) ||
-        !empty($user->deleted) ||
-        !empty($user->suspended)) {
+        if (
+            empty($user)
+            || !core_user::is_real_user($user->id, true)
+            || isguestuser($user)
+            || !empty($user->deleted)
+            || !empty($user->suspended)
+            ) {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Check if the user has a saved relogin cookies.
+     * returns the user object and the session id.
+     * @return array|null
+     */
+    public static function get_user_by_cookies() {
+        global $DB, $SITE, $CFG;
+        $matches = [];
+        // Check the plugin cookies.
+        $cookiesname = (!empty($SITE->shortname)) ? 'ReLoginMoodle'.$SITE->shortname : 'ReLoginMoodle';
+        if (isset($_COOKIE[$cookiesname])) {
+            $matches[] = $_COOKIE[$cookiesname];
+        }
+
+        // Check moodle cookies.
+        if (!isset($CFG->sessioncookie)) {
+            $sessionname = 'MoodleSession';
+        } else {
+            $sessionname = 'MoodleSession'.$CFG->sessioncookie;
+        }
+
+        if (isset($_COOKIE[$sessionname])) {
+            $matches[] = $_COOKIE[$sessionname];
+        }
+
+        if (!empty($matches)) {
+            foreach ($matches as $sid) {
+                $record = $DB->get_record('sessions', ['sid' => $sid]);
+                if (!$record) {
+                    // The session expired.
+                    continue;
+                }
+
+                $user = \core_user::get_user($record->userid);
+                if (!self::is_valid_user($user)) {
+                    continue;
+                }
+
+                // Double check if the session is not timed out.
+                $exist = \core\session\manager::session_exists($sid);
+                if (!$exist) {
+                    // Session expired.
+                    continue;
+                }
+                return [$user, $sid];
+            }
+        }
+        return null;
     }
 
     /**
@@ -398,8 +342,5 @@ class auth_plugin_relogin extends auth_plugin_base {
         }
         setcookie($cookiesname, '', $options);
         unset($_COOKIE[$cookiesname]);
-
-        // Delete any remained sessions records for this ip address.
-        $DB->delete_records('sessions', ['userid' => $user->id, 'lastip' => getremoteaddr()]);
     }
 }

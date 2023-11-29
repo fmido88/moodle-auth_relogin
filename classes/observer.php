@@ -47,13 +47,17 @@ class observer {
         require_once($CFG->dirroot . '/auth/relogin/auth.php');
         $userid = $event->userid;
 
+        if (!is_enabled_auth('relogin')) {
+            return;
+        }
+
         $user = \core_user::get_user($userid);
         if (!auth_plugin_relogin::is_valid_user($user)) {
             return;
         }
 
         // Check if permanent cookies enabled.
-        if (!get_config('auth_relogin', 'cookies')) {
+        if (empty(get_config('auth_relogin', 'cookies'))) {
             return;
         }
 
@@ -68,11 +72,12 @@ class observer {
                 return;
             }
         }
+
         $options = [
-            'expires' => time() + DAYSECS * 30,
-            'path' => $CFG->sessioncookiepath,
-            'domain' => $CFG->sessioncookiedomain,
-            'secure' => is_moodle_cookie_secure(),
+            'expires'  => time() + DAYSECS * 30,
+            'path'     => $CFG->sessioncookiepath,
+            'domain'   => $CFG->sessioncookiedomain,
+            'secure'   => is_moodle_cookie_secure(),
             'httponly' => $CFG->cookiehttponly,
         ];
 
@@ -80,9 +85,8 @@ class observer {
             // If $samesite is empty, we don't want there to be any SameSite attribute.
             $options['samesite'] = 'None';
         }
+
         $cookiesname = (!empty($SITE->shortname)) ? 'ReLoginMoodle'.$SITE->shortname : 'ReLoginMoodle';
         setcookie($cookiesname, $sid, $options);
     }
-
 }
-

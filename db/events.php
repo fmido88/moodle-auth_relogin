@@ -26,11 +26,12 @@
 defined('MOODLE_INTERNAL') || die();
 
 // List of observers.
-$observers = array(
+$observers = [
     // Saving the plugin cookies after the user logged in.
-    array(
+    [
         'eventname' => '\core\event\user_loggedin',
-        'callback' => '\auth_relogin\observer::save_cookies',
-    ),
-);
+        'callback'  => '\auth_relogin\observer::save_cookies',
+        'priority'  => 99999,
+    ],
+];
 
