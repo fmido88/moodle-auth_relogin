@@ -2,9 +2,9 @@
 
 In Moodle session Manger, the cookies saved is a session cookies which will be deleted when the browser closed or becomes inactive which bothers some users as they have to re-login again even if the session is not expired, this plugin provide auto login mechanism to re-login the users with unexpired sessions.
 
-This plugin works as when user logged in, it saves a permanent cookies with the same session id, so when the user opens the browser again the plugin searches for that cookie and check for this session if not expired uet, and re-login the user again automatically.
+This plugin works as when user logged in, it saves a permanent cookies with the same session id, so when the user opens the browser again the plugin searches for that cookie and check for this session if not expired yet, and re-login the user again automatically.
 
-Admins can decided which technique will be used or both.
+Normally this plugin searches for this cookies whenever the page required login, but admins can choose to make it work in the login page too or at any page.
 
 Cookies stored by this plugin expires if the user normally logged out.
 
