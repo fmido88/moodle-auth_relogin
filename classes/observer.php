@@ -56,11 +56,6 @@ class observer {
             return;
         }
 
-        // Check if permanent cookies enabled.
-        if (empty(get_config('auth_relogin', 'cookies'))) {
-            return;
-        }
-
         if (!empty(session_id())) {
             $sid = session_id();
         } else {
