@@ -35,3 +35,4 @@ $string['loginpage_help'] = 'If checked the plugin will try to login the user au
 $string['anypage'] = 'Login the user from any page.';
 $string['anypage_help'] = 'If not enabled, the user will be logged in automatically only from pages required login, else it will login the user from any page including the login page.';
 $string['pluginname'] = 'ReLogin';
+$string['plugin_desc'] = 'Moodle uses session cookies only which will be deleted if the user closed the browser or the browser tab becomes inactive. This plugin aims to store a permanent cookies which store the session id to re-login the user again automatically only if the session hasn\'t timed out yet, so make sure to set the setting sessiontimeout to a proper value';

@@ -235,8 +235,8 @@ class auth_plugin_relogin extends auth_plugin_base {
         // Login the user.
         $user = complete_user_login($found);
 
-        if (!empty($user) && is_object($user) && !isguestuser($user)) {
-            \core\session\manager::apply_concurrent_login_limit($found->id, session_id());
+        if (!empty($user->id) && !isguestuser($user)) {
+            \core\session\manager::apply_concurrent_login_limit($user->id, session_id());
             if (optional_param('sesskey', false, PARAM_BOOL)) {
                 // This means that the current page contains a submitted form.
                 // To avoid resubmission or invalid sesskey exception, Redirect.
@@ -256,6 +256,7 @@ class auth_plugin_relogin extends auth_plugin_base {
     public static function is_valid_user($user) {
         if (
             empty($user)
+            || empty($user->id)
             || !core_user::is_real_user($user->id, true)
             || isguestuser($user)
             || !empty($user->deleted)

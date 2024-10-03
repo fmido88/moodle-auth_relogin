@@ -27,17 +27,19 @@
  * @return void
  */
 function auth_relogin_after_config() {
-    if (!get_config('auth_relogin', 'anypage')) {
-        return;
-    }
-    auth_relogin_apply_login();
-}
 
+}
+function auth_relogin_before_session_start() {
+
+}
 /**
  * Fire up each time require_login() called and redirect non-confirmed users to confirm page.
  * @return void
  */
 function auth_relogin_after_require_login() {
+    if (!get_config('auth_relogin', 'anypage')) {
+        return;
+    }
     auth_relogin_apply_login();
 }
 
@@ -55,7 +57,7 @@ function auth_relogin_apply_login() {
 
     if (!isloggedin() || isguestuser()) {
         $auth = get_auth_plugin('relogin');
-        if ($auth->pre_loginpage_hook() && !AJAX_SCRIPT) {
+        if ($auth->pre_loginpage_hook()) {
             global $CFG, $SESSION;
             if (!empty($SESSION->wantsurl)) {
                 redirect($SESSION->wantsurl);

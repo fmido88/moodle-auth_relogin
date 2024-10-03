@@ -61,8 +61,8 @@ class observer {
         } else {
             $sessions = $DB->get_records('sessions', ['userid' => $user->id], 'timemodified DESC', 'sid', 0, 1);
             if (!empty($sessions)) {
-                $first = array_key_first($sessions);
-                $sid = $sessions[$first]->sid;
+                $first = reset($sessions);
+                $sid = $first->sid;
             } else {
                 return;
             }

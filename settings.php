@@ -25,6 +25,9 @@
 defined('MOODLE_INTERNAL') || die;
 
 if ($hassiteconfig) {
+    $settings->add(new admin_setting_heading('auth_relogin_settings',
+                                                    get_string('pluginname', 'auth_relogin'),
+                                                    get_string('plugin_desc', 'auth_relogin')));
     $settings->add(new admin_setting_configcheckbox('auth_relogin/loginpage',
                                                     get_string('loginpage', 'auth_relogin'),
                                                     get_string('loginpage_help', 'auth_relogin'),
