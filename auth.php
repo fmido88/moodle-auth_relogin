@@ -198,7 +198,7 @@ class auth_plugin_relogin extends auth_plugin_base {
         // Prepare the events reader.
         // In this part we check for logged out event with the same session id.
         // This is a double check to not relogin the user that is already logged out by himself.
-        // TODO delete this part after making that the cookies get deleted after logging out.
+        // Todo delete this part after making sure that the cookies get deleted after logging out.
         $logmanager = get_log_manager();
         $readers    = $logmanager->get_readers('core\log\sql_reader');
         $reader     = array_pop($readers);

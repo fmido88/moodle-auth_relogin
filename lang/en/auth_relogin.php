@@ -24,15 +24,14 @@
  */
 
 defined('MOODLE_INTERNAL') || die();
-
+$string['anypage'] = 'Login the user from any page.';
+$string['anypage_help'] = 'If not enabled, the user will be logged in automatically only from pages required login, else it will login the user from any page including the login page.';
 $string['cookies'] = 'Permanent cookies?';
 $string['cookies_help'] = 'If enabled? this plugin will save cookies in users device to help it to re-login again to the website if the user\'s session isn\'t timed out yet,
- else if not enabled the plugin will try to re-login the users by the ip address which is not grantee.<br>
+else if not enabled the plugin will try to re-login the users by the ip address which is not grantee.<br>
 Warning: Permanent cookies may be considered a privacy issue if used without consent.<br>
 NOTE: if both this method (permanent cookies) and (use ip address) not checked, this plugin not functionally working.';
 $string['loginpage'] = 'Apply for login page?';
 $string['loginpage_help'] = 'If checked the plugin will try to login the user automatically if their session not expired yet, otherwise the plugin works for any other page that requires login.';
-$string['anypage'] = 'Login the user from any page.';
-$string['anypage_help'] = 'If not enabled, the user will be logged in automatically only from pages required login, else it will login the user from any page including the login page.';
-$string['pluginname'] = 'ReLogin';
 $string['plugin_desc'] = 'Moodle uses session cookies only which will be deleted if the user closed the browser or the browser tab becomes inactive. This plugin aims to store a permanent cookies which store the session id to re-login the user again automatically only if the session hasn\'t timed out yet, so make sure to set the setting sessiontimeout to a proper value';
+$string['pluginname'] = 'ReLogin';
