@@ -300,7 +300,7 @@ class auth_plugin_relogin extends auth_plugin_base {
                     continue;
                 }
 
-                $user = \core_user::get_user($record->userid);
+                $user = get_complete_user_data('id', $record->userid);
                 if (!self::is_valid_user($user)) {
                     continue;
                 }

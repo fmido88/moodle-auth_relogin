@@ -22,18 +22,9 @@
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-/**
- * Fire up  each time $CFG load.
- * @return void
- */
-function auth_relogin_after_config() {
 
-}
-function auth_relogin_before_session_start() {
-
-}
 /**
- * Fire up each time require_login() called and redirect non-confirmed users to confirm page.
+ * Fire up each time require_login() called and re-login valid session.
  * @return void
  */
 function auth_relogin_after_require_login() {
@@ -58,7 +49,7 @@ function auth_relogin_apply_login() {
     if (!isloggedin() || isguestuser()) {
         $auth = get_auth_plugin('relogin');
         if ($auth->pre_loginpage_hook()) {
-            global $CFG, $SESSION;
+            global $SESSION;
             if (!empty($SESSION->wantsurl)) {
                 redirect($SESSION->wantsurl);
             }
