@@ -341,6 +341,7 @@ class auth_plugin_relogin extends auth_plugin_base {
             // If $samesite is empty, we don't want there to be any SameSite attribute.
             $options['samesite'] = 'None';
         }
+        $cookiesname = str_replace(["=", ",", ";", " ", "\t", "\r", "\n", "\013", "\014"], '', $cookiesname);
         setcookie($cookiesname, '', $options);
         unset($_COOKIE[$cookiesname]);
     }

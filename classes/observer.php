@@ -82,6 +82,8 @@ class observer {
         }
 
         $cookiesname = (!empty($SITE->shortname)) ? 'ReLoginMoodle'.$SITE->shortname : 'ReLoginMoodle';
+        $cookiesname = str_replace(["=", ",", ";", " ", "\t", "\r", "\n", "\013", "\014"], '', $cookiesname);
+
         setcookie($cookiesname, $sid, $options);
     }
 }
