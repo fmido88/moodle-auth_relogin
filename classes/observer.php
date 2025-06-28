@@ -81,8 +81,7 @@ class observer {
             $options['samesite'] = 'None';
         }
 
-        $cookiesname = (!empty($SITE->shortname)) ? 'ReLoginMoodle'.$SITE->shortname : 'ReLoginMoodle';
-        $cookiesname = str_replace(["=", ",", ";", " ", "\t", "\r", "\n", "\013", "\014"], '', $cookiesname);
+        $cookiesname = auth_plugin_relogin::get_relogin_cookies_name();
 
         setcookie($cookiesname, $sid, $options);
     }

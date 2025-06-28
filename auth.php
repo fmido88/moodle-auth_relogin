@@ -267,16 +267,35 @@ class auth_plugin_relogin extends auth_plugin_base {
         return true;
     }
 
+    public static function get_relogin_cookies_name() {
+        global $SITE;
+        $shortname = '';
+        if (!empty($SITE->shortname)) {
+            // Transliterate to ASCII (removes Arabic and other Unicode characters).
+            $translit = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $SITE->shortname) ?? false;
+            if ($translit === false) {
+                $translit = ''; // Fallback in case iconv fails
+            }
+
+            // Replace anything that's not a-z, A-Z, 0-9.
+            $shortname = preg_replace('/[^a-zA-Z0-9]/', '', $translit);
+            // Limit length to avoid very long cookie names.
+            $shortname = substr($shortname, 0, 50);
+        }
+
+        return 'ReLoginMoodle' . $shortname;
+    }
     /**
      * Check if the user has a saved relogin cookies.
      * returns the user object and the session id.
      * @return array|null
      */
     public static function get_user_by_cookies() {
-        global $DB, $SITE, $CFG;
+        global $DB, $CFG;
         $matches = [];
         // Check the plugin cookies.
-        $cookiesname = (!empty($SITE->shortname)) ? 'ReLoginMoodle'.$SITE->shortname : 'ReLoginMoodle';
+
+        $cookiesname = self::get_relogin_cookies_name();
         if (isset($_COOKIE[$cookiesname])) {
             $matches[] = $_COOKIE[$cookiesname];
         }
@@ -325,11 +344,11 @@ class auth_plugin_relogin extends auth_plugin_base {
      * @param stdClass $user clone of USER object before the user session was terminated
      */
     public function postlogout_hook($user) {
-        global $CFG, $DB, $SITE;
+        global $CFG, $DB;
         // When the user logout normally, making sure this plugin didn't log him again.
         // Also it enhance security.
         // Unset this plugin cookies.
-        $cookiesname = (!empty($SITE->shortname)) ? 'ReLoginMoodle'.$SITE->shortname : 'ReLoginMoodle';
+        $cookiesname = self::get_relogin_cookies_name();
         $options = [
             'expires'  => time() - DAYSECS * 30,
             'path'     => $CFG->sessioncookiepath,
@@ -341,7 +360,6 @@ class auth_plugin_relogin extends auth_plugin_base {
             // If $samesite is empty, we don't want there to be any SameSite attribute.
             $options['samesite'] = 'None';
         }
-        $cookiesname = str_replace(["=", ",", ";", " ", "\t", "\r", "\n", "\013", "\014"], '', $cookiesname);
         setcookie($cookiesname, '', $options);
         unset($_COOKIE[$cookiesname]);
     }
