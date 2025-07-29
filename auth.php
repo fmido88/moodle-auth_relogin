@@ -267,6 +267,10 @@ class auth_plugin_relogin extends auth_plugin_base {
         return true;
     }
 
+    /**
+     * Parse the cookies name.
+     * @return string
+     */
     public static function get_relogin_cookies_name() {
         global $SITE;
         $shortname = '';
