@@ -317,13 +317,13 @@ class auth_plugin_relogin extends auth_plugin_base {
 
         if (!empty($matches)) {
             foreach ($matches as $sid) {
-                $record = $DB->get_record('sessions', ['sid' => $sid]);
-                if (!$record) {
-                    // The session expired.
+                $session = \core\session\manager::get_session_by_sid($sid);
+                if (!isset($session->userid)) {
+                    // The session doesn't exist.
                     continue;
                 }
 
-                $user = get_complete_user_data('id', $record->userid);
+                $user = get_complete_user_data('id', $session->userid);
                 if (!self::is_valid_user($user)) {
                     continue;
                 }
